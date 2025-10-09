@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ITM Embind Demo</title>
+  </head>
+  <body>
+    <h1>ITM Embind Demo</h1>
+    <pre id="out">loading…</pre>
+    <script type="module">
+      import ITM from '../dist/itm.js';
+
+      const out = (msg) => (document.getElementById('out').textContent += msg + '\n');
+
+      // Optional: tell Emscripten where to find the WASM
+      const Module = await ITM({
+        locateFile: (path) => path.endsWith('.wasm') ? '../dist/itm.wasm' : path
+      });
+
+      // Example PFL: replace with your real ITM profile encoding
+      const pfl = [15, 3, 0.0, 0.001, 0.002, 0.004, 0.007, 0.011, 0.016];
+
+      const params = {
+        h_tx__meter: 30.0,
+        h_rx__meter: 10.0,
+        climate: 5,
+        N_0: 301.0,
+        f__mhz: 900.0,
+        pol: 1,
+        epsilon: 15.0,
+        sigma: 0.005,
+        mdvar: 0,
+        time: 50.0,
+        location: 50.0,
+        situation: 50.0,
+      };
+
+      // Call the adapter that accepts JS array or Float64Array
+      const res = Module.ITM_P2P_TLS_Ex_r(
+        params.h_tx__meter,
+        params.h_rx__meter,
+        pfl, // plain JS array works; Float64Array also OK
+        params.climate, params.N_0, params.f__mhz, params.pol,
+        params.epsilon, params.sigma, params.mdvar,
+        params.time, params.location, params.situation
+      );
+
+      out('status     : ' + res.status);
+      out('A_db       : ' + res.A_db.toFixed(3));
+      out('warnings   : ' + res.warnings);
+      out('theta_hzn  : [' + res.inter.theta_hzn_0.toFixed(5) + ', ' + res.inter.theta_hzn_1.toFixed(5) + ']');
+      out('d_hzn_m    : [' + res.inter.d_hzn__meter_0.toFixed(3) + ', ' + res.inter.d_hzn__meter_1.toFixed(3) + ']');
+      out('mode       : ' + res.inter.mode);
+    </script>
+  </body>
+</html>

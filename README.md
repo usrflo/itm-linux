@@ -4,6 +4,14 @@ This code repository contains the ITS Irregular Terrain Model (ITM). ITM predict
 
 **Note**: Version 1.3 of this code base is functionally identical to version 1.2.2 of the FORTRAN source, which has been archived [here](https://github.com/NTIA/itm-longley-rice).  ITS plans to apply all future ITM updates to this C++ code base.
 
+## WebAssembly Build ##
+Assume u already installed emsdk and emcc / em++ is working. Output to directory: `itm_wasm/dist`
+```sh
+# 
+cd itm_wasm/wasm
+./build.sh
+```
+
 ## Quick Start ##
 
 Users of ITM have two options to immediately begin using ITM:

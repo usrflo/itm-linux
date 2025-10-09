@@ -1,3 +1,6 @@
+#ifndef __ITM_H__
+#define __ITM_H__
+
 #include <complex>
 #include <math.h>
 #include <algorithm>
@@ -7,7 +10,8 @@
 using namespace std;
 
 // Export the DLL functions as "C" and not C++
-#define DLLEXPORT extern "C" __declspec(dllexport)
+#include "Config.h"
+
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define DIM(x, y) (((x) > (y)) ? (x - y) : (0))
@@ -103,3 +107,5 @@ DLLEXPORT int ValidateInputs(const double h_tx__meter, const double h_rx__meter,
     const double epsilon, const double sigma, const int mdvar, long *warnings);
 DLLEXPORT double Variability(const double time, const double location, const double situation, const double h_e__meter[2], const double delta_h__meter,
     const double f__mhz, const double d__meter, const double A_ref__db, const int climate, const int mdvar, long *warnings);
+
+#endif
