@@ -96,11 +96,57 @@ ITM supports a defined list of error codes and warning flags.  A complete list c
 
 ### C++ Software ###
 
-The software is designed to be built into a DLL (or corresponding library for non-Windows systems).  The source code can be built for any OS that supports the standard C++ libraries.  A Visual Studio 2019 project file is provided for Windows users to support the build process and configuration.
+The software is built as a native library (DLL on Windows, shared object on Linux/macOS).  A Visual Studio solution is provided for Windows users; a Makefile is provided for Unix-like systems (Linux/macOS).
+
+Linux (and other Unix-like) build instructions
+
+- Prerequisites: `g++` (supporting C++11), `make` and standard development tools.
+- From the repository root, run:
+
+```sh
+make
+```
+
+This builds the shared library at `bin/libitm.so`.
+
+- For a debug build with symbols:
+
+```sh
+make debug
+```
+
+- To also attempt building the command-line driver (may be platform-specific):
+
+```sh
+make all-with-driver
+```
+
+Note: `ITMDrvr` contains some Windows-specific code; `make all-with-driver` may fail on some Unix-like systems. The default `make` target builds only the portable `libitm.so` library.
+
+- Install to system locations (requires sudo):
+
+```sh
+sudo make install
+```
+
+- Clean build artifacts:
+
+```sh
+make clean
+```
+
+Built artifacts
+
+- `bin/libitm.so` — the shared library for linking into other applications.
+- `bin/ITMDrvr` — the command-line driver if `all-with-driver` succeeded.
+
+Windows build instructions
+
+For Windows developers a Visual Studio 2019 solution is provided. Open [win32/itm.sln](win32/itm.sln) in Visual Studio and build the `itm` project to produce the DLL.
 
 ### C#/.NET Wrapper Software ###
 
-The .NET support of ITM consists of a simple pass-through wrapper around the native DLL.  It is compiled to target .NET Framework 4.7.2.
+The .NET support of ITM consists of a simple pass-through wrapper around the native library.  The wrapper targets .NET Framework 4.7.2 and can be found in the `dotnet/` directory.
 
 ## References ##
 
