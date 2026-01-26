@@ -115,14 +115,6 @@ This builds the shared library at `bin/libitm.so`.
 make debug
 ```
 
-- To also attempt building the command-line driver (may be platform-specific):
-
-```sh
-make all-with-driver
-```
-
-Note: `ITMDrvr` contains some Windows-specific code; `make all-with-driver` may fail on some Unix-like systems. The default `make` target builds only the portable `libitm.so` library.
-
 - Install to system locations (requires sudo):
 
 ```sh
@@ -138,11 +130,14 @@ make clean
 Built artifacts
 
 - `bin/libitm.so` — the shared library for linking into other applications.
-- `bin/ITMDrvr` — the command-line driver if `all-with-driver` succeeded.
+
+**Note**: The command-line driver `ITMDrvr` requires Windows-specific APIs and is not currently supported on Linux. Linux users should link against `libitm.so` directly in their applications.
 
 Windows build instructions
 
-For Windows developers a Visual Studio 2019 solution is provided. Open [win32/itm.sln](win32/itm.sln) in Visual Studio and build the `itm` project to produce the DLL.
+For Windows developers a Visual Studio 2019 solution is provided. Open [win32/itm.sln](win32/itm.sln) in Visual Studio and build:
+- The `itm` project to produce the DLL
+- The `ITMDrvr` project to build the command-line driver (see [cmdREADME.md](cmdREADME.md) for usage)
 
 ### C#/.NET Wrapper Software ###
 
