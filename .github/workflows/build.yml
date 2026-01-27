@@ -1,0 +1,50 @@
+name: build-itm
+
+on:
+  push:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64, i686, aarch64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        run: |
+          docker run --rm \
+            -v $PWD:/src \
+            -w /src \
+            quay.io/pypa/manylinux2014_${{ matrix.arch }} \
+            bash -c "
+              make clean &&
+              make
+            "
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: itm-${{ matrix.arch }}
+          path: bin/libitm.so
+
+      - name: Create archive
+        run: |
+          cd bin
+          tar czf ../itm-${{ matrix.arch }}.tar.gz libitm.so
+          cd ..
+
+      - name: Upload Release Assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./itm-*.tar.gz
