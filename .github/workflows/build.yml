@@ -73,13 +73,13 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: itm-macos-${{ matrix.arch }}
+          name: itm-macos-${{ matrix.os }}-${{ matrix.arch }}
           path: bin/libitm.*
 
       - name: Create archive
         run: |
           cd bin
-          tar czf ../itm-macos-${{ matrix.arch }}.tar.gz libitm.*
+          tar czf ../itm-macos-${{ matrix.os }}-${{ matrix.arch }}.tar.gz libitm.*
           cd ..
 
       - name: Upload Release Assets
