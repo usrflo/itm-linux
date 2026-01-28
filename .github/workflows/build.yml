@@ -3,7 +3,7 @@ name: build-itm
 on:
   push:
   release:
-    types: [created, published]
+    types: [published]
 
 jobs:
   build-linux:
