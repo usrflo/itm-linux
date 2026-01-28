@@ -103,3 +103,37 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ./itm-macos-*.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        platform: [x64, x86]
+        configuration: [Release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        run: |
+          msbuild win32\itm.sln /p:Configuration=${{ matrix.configuration }} /p:Platform=${{ matrix.platform }} /m
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: itm-windows-${{ matrix.platform }}
+          path: |
+            bin/${{ matrix.platform }}/${{ matrix.configuration }}/itm.dll
+            bin/${{ matrix.platform }}/${{ matrix.configuration }}/ITMDrvr.exe
+
+      - name: Create archive
+        run: |
+          Compress-Archive -Path bin\${{ matrix.platform }}\${{ matrix.configuration }}\itm.dll, bin\${{ matrix.platform }}\${{ matrix.configuration }}\ITMDrvr.exe -DestinationPath itm-windows-${{ matrix.platform }}.zip
+
+      - name: Upload Release Assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./itm-windows-*.zip
