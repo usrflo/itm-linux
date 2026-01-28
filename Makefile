@@ -1,12 +1,31 @@
 # Makefile for ITM (Irregular Terrain Model) Project
-# Compiles libitm.so (shared library) and ITMDrvr (command-line driver)
+# Compiles libitm.so/libitm.dylib (shared library) and ITMDrvr (command-line driver)
+
+# Detect OS
+UNAME_S := $(shell uname -s)
 
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -fPIC -Wall -Wextra -O2 -std=c++11 -D_LINUX
-CXXFLAGS_DEBUG = -fPIC -Wall -Wextra -g -std=c++11 -D_LINUX
+CXXFLAGS = -fPIC -Wall -Wextra -O2 -std=c++11
+CXXFLAGS_DEBUG = -fPIC -Wall -Wextra -g -std=c++11
 LDFLAGS = -shared -lm
 LDFLAGS_STATIC = -lm
+
+# OS-specific settings
+ifeq ($(UNAME_S),Linux)
+  CXXFLAGS += -D_LINUX
+  CXXFLAGS_DEBUG += -D_LINUX
+  LIBITM_EXT = so
+else ifeq ($(UNAME_S),Darwin)
+  CXXFLAGS += -D_DARWIN
+  CXXFLAGS_DEBUG += -D_DARWIN
+  LIBITM_EXT = dylib
+else
+  # Default fallback to Linux
+  CXXFLAGS += -D_LINUX
+  CXXFLAGS_DEBUG += -D_LINUX
+  LIBITM_EXT = so
+endif
 
 # Directories
 INCLUDE_DIR = include
@@ -53,7 +72,7 @@ LIBITM_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/libitm/%.o,$(LIBITM_SOURCES))
 ITMDRVR_OBJECTS = $(patsubst %.cpp,$(BUILD_DIR)/itmdrvr/%.o,$(ITMDRVR_SOURCES))
 
 # Targets
-LIBITM_TARGET = $(BIN_DIR)/libitm.so
+LIBITM_TARGET = $(BIN_DIR)/libitm.$(LIBITM_EXT)
 ITMDRVR_TARGET = $(BIN_DIR)/ITMDrvr
 
 # Default target
