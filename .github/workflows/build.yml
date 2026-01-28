@@ -125,12 +125,12 @@ jobs:
         with:
           name: itm-windows-${{ matrix.platform }}
           path: |
-            win32/${{ matrix.platform }}/${{ matrix.configuration }}/itm.dll
-            win32/${{ matrix.platform }}/${{ matrix.configuration }}/ITMDrvr.exe
+            bin/${{ matrix.platform }}/${{ matrix.configuration }}/itm.dll
+            bin/${{ matrix.platform }}/${{ matrix.configuration }}/ITMDrvr.exe
 
       - name: Create archive
         run: |
-          Compress-Archive -Path win32\${{ matrix.platform }}\${{ matrix.configuration }}\itm.dll, win32\${{ matrix.platform }}\${{ matrix.configuration }}\ITMDrvr.exe -DestinationPath itm-windows-${{ matrix.platform }}.zip
+          Compress-Archive -Path bin\${{ matrix.platform }}\${{ matrix.configuration }}\itm.dll, bin\${{ matrix.platform }}\${{ matrix.configuration }}\ITMDrvr.exe -DestinationPath itm-windows-${{ matrix.platform }}.zip
 
       - name: Upload Release Assets
         if: github.event_name == 'release'
