@@ -96,9 +96,14 @@ ITM supports a defined list of error codes and warning flags.  A complete list c
 
 ### C++ Software ###
 
-The software is built as a native library (DLL on Windows, shared object on Linux/macOS).  A Visual Studio solution is provided for Windows users; a Makefile is provided for Unix-like systems (Linux/macOS).
+The software is built as a native library:
+- Windows: DLL (`itm.dll`)
+- Linux: shared object (`libitm.so`)
+- macOS: dynamic library (`libitm.dylib`)
 
-Linux (and other Unix-like) build instructions
+A Visual Studio solution is provided for Windows users; a Makefile is provided for Unix-like systems (Linux/macOS).
+
+Linux and macOS build instructions
 
 - Prerequisites: `g++` (supporting C++11), `make` and standard development tools.
 - From the repository root, run:
@@ -107,7 +112,11 @@ Linux (and other Unix-like) build instructions
 make
 ```
 
-This builds the shared library at `bin/libitm.so`.
+This builds the shared library:
+- Linux: `bin/libitm.so`
+- macOS: `bin/libitm.dylib`
+
+The Makefile automatically detects your operating system and builds the appropriate library format.
 
 - For a debug build with symbols:
 
@@ -127,11 +136,20 @@ sudo make install
 make clean
 ```
 
+- Test the library:
+
+```sh
+g++ -o test_libitm test/test_libitm.c -ldl  # Linux
+g++ -o test_libitm test/test_libitm.c        # macOS
+./test_libitm
+```
+
 Built artifacts
 
-- `bin/libitm.so` — the shared library for linking into other applications.
+- Linux: `bin/libitm.so` — the shared library for linking into other applications
+- macOS: `bin/libitm.dylib` — the dynamic library for linking into other applications
 
-**Note**: The command-line driver `ITMDrvr` requires Windows-specific APIs and is not currently supported on Linux. Linux users should link against `libitm.so` directly in their applications.
+**Note**: The command-line driver `ITMDrvr` requires Windows-specific APIs and is not currently supported on Linux/macOS. Users on these platforms should link against the shared library directly in their applications.
 
 Windows build instructions
 
