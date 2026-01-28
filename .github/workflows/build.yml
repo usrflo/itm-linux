@@ -31,6 +31,17 @@ jobs:
               make
             "
 
+      - name: Test
+        run: |
+          docker run --rm \
+            -v $PWD:/src \
+            -w /src \
+            quay.io/pypa/manylinux2014_${{ matrix.arch }} \
+            bash -c "
+              g++ -o test_libitm test/test_libitm.c -ldl &&
+              ./test_libitm
+            "
+            
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -69,6 +80,11 @@ jobs:
         run: |
           make clean
           make
+
+      - name: Test
+        run: |
+          g++ -o test_libitm test/test_libitm.c
+          ./test_libitm
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
