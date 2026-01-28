@@ -7,7 +7,7 @@
 using namespace std;
 
 // Export the DLL functions as "C" and not C++
-#ifdef _LINUX
+#if defined(_LINUX) || defined(_DARWIN)
 #define DLLEXPORT extern "C"
 #else
 #define DLLEXPORT extern "C" __declspec(dllexport)
