@@ -6,7 +6,7 @@ on:
     types: [created, published]
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -34,17 +34,52 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: itm-${{ matrix.arch }}
+          name: itm-linux-${{ matrix.arch }}
           path: bin/libitm.so
 
       - name: Create archive
         run: |
           cd bin
-          tar czf ../itm-${{ matrix.arch }}.tar.gz libitm.so
+          tar czf ../itm-linux-${{ matrix.arch }}.tar.gz libitm.so
           cd ..
 
       - name: Upload Release Assets
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
-          files: ./itm-*.tar.gz
+          files: ./itm-linux-*.tar.gz
+
+  build-macos:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-13
+            arch: x86_64
+          - os: macos-14
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          make clean
+          make
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: itm-macos-${{ matrix.arch }}
+          path: bin/libitm.*
+
+      - name: Create archive
+        run: |
+          cd bin
+          tar czf ../itm-macos-${{ matrix.arch }}.tar.gz libitm.*
+          cd ..
+
+      - name: Upload Release Assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./itm-macos-*.tar.gz
