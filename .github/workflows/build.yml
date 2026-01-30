@@ -154,142 +154,55 @@ jobs:
           emcc --version
           em++ --version
 
-      - name: Create build directories
-        run: |
-          mkdir -p build/wasm
-          mkdir -p bin
+      - name: Create output directory
+        run: mkdir -p dist
 
-      - name: Compile source files to object files
+      - name: Build WebAssembly with Emscripten
         run: |
-          # Compile all ITM source files to WebAssembly object files
-          # Exclude any emscripten wrapper files if they exist
-          for src in src/*.cpp; do
-            filename=$(basename "$src" .cpp)
-            # Skip emscripten-specific wrapper files
-            if [[ "$filename" == *"em_wrapper"* ]] || [[ "$filename" == *"embind"* ]]; then
-              echo "Skipping Emscripten wrapper file: $src"
-              continue
-            fi
-            echo "Compiling $src..."
-            em++ -c "$src" \
-              -o "build/wasm/${filename}.o" \
-              -Iinclude \
-              -O3 \
-              -std=c++11 \
-              -fPIC \
-              -Wall \
-              -Wextra \
-              -D_WASM
-          done
-
-      - name: Link WebAssembly library
-        run: |
-          em++ build/wasm/*.o \
-            -o bin/libitm.js \
-            -O3 \
-            -std=c++11 \
-            -s WASM=1 \
-            -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
-            -s EXPORTED_FUNCTIONS='["_ITM_P2P_TLS","_ITM_P2P_CR","_ITM_AREA_TLS","_ITM_AREA_CR","_FreeSpaceLoss","_InitializePointToPoint","_InitializeArea","_ValidateInputs","_Variability","_LongleyRice","_FindHorizons","_FresnelIntegral","_H0Function","_FFunction","_SigmaHFunction","_DiffractionLoss","_LineOfSightLoss","_TroposcatterLoss","_TerrainRoughness","_QuickPfl"]' \
-            -s MODULARIZE=1 \
-            -s EXPORT_NAME='ITMModule' \
-            -s ALLOW_MEMORY_GROWTH=1 \
-            -s INITIAL_MEMORY=16MB \
-            -s MAXIMUM_MEMORY=256MB \
-            -s ENVIRONMENT='web,worker,node' \
-            -s FILESYSTEM=0 \
-            -s NO_EXIT_RUNTIME=1 \
-            --no-entry \
-            -lm
+          em++ -O3 \
+            src/itm_em_wrapper.cpp \
+            src/itm_p2p.cpp \
+            src/itm_area.cpp \
+            src/ValidateInputs.cpp \
+            src/ComputeDeltaH.cpp \
+            src/DiffractionLoss.cpp \
+            src/FindHorizons.cpp \
+            src/FreeSpaceLoss.cpp \
+            src/FresnelIntegral.cpp \
+            src/H0Function.cpp \
+            src/InitializeArea.cpp \
+            src/InitializePointToPoint.cpp \
+            src/InverseComplementaryCumulativeDistributionFunction.cpp \
+            src/KnifeEdgeDiffraction.cpp \
+            src/LinearLeastSquaresFit.cpp \
+            src/LineOfSightLoss.cpp \
+            src/LongleyRice.cpp \
+            src/QuickPfl.cpp \
+            src/SigmaHFunction.cpp \
+            src/SmoothEarthDiffraction.cpp \
+            src/TerrainRoughness.cpp \
+            src/TroposcatterLoss.cpp \
+            src/Variability.cpp \
+            -std=c++17 -lembind \
+            -sMODULARIZE=1 -sEXPORT_NAME=ITM \
+            -sENVIRONMENT=web,worker,node \
+            -sALLOW_MEMORY_GROWTH=1 \
+            -o dist/itm.js
 
       - name: Verify build output
         run: |
           echo "Build artifacts:"
-          ls -lh bin/
+          ls -lh dist/
           echo ""
           echo "WASM file size:"
-          du -h bin/libitm.wasm
-
-      - name: Create JavaScript wrapper
-        run: |
-          cat > bin/itm-wrapper.js << 'EOF'
-          /**
-           * ITM (Irregular Terrain Model) WebAssembly Wrapper
-           * 
-           * Usage:
-           *   import ITM from './itm-wrapper.js';
-           *   const itm = await ITM();
-           *   const loss = itm.FreeSpaceLoss(10000, 1000);
-           */
-          
-          import ITMModule from './libitm.js';
-          
-          async function ITM() {
-            const Module = await ITMModule();
-            
-            return {
-              // Basic propagation functions
-              FreeSpaceLoss: Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']),
-              
-              // Validation
-              ValidateInputs: Module.cwrap('ValidateInputs', 'number', [
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number', 
-                'number'
-              ]),
-              
-              // Point-to-Point mode with time/location/situation
-              ITM_P2P_TLS: Module.cwrap('ITM_P2P_TLS', 'number', [
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number'
-              ]),
-              
-              // Point-to-Point mode with confidence/reliability
-              ITM_P2P_CR: Module.cwrap('ITM_P2P_CR', 'number', [
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number', 
-                'number', 'number', 'number', 'number', 
-                'number', 'number'
-              ]),
-              
-              // Area mode with time/location/situation
-              ITM_AREA_TLS: Module.cwrap('ITM_AREA_TLS', 'number', [
-                'number', 'number', 'number', 'number',
-                'number', 'number', 'number', 'number',
-                'number', 'number', 'number', 'number',
-                'number', 'number', 'number', 'number',
-                'number'
-              ]),
-              
-              // Area mode with confidence/reliability
-              ITM_AREA_CR: Module.cwrap('ITM_AREA_CR', 'number', [
-                'number', 'number', 'number', 'number',
-                'number', 'number', 'number', 'number',
-                'number', 'number', 'number', 'number',
-                'number', 'number', 'number', 'number',
-                'number', 'number'
-              ]),
-              
-              // Helper functions
-              FindHorizons: Module.cwrap('FindHorizons', null, ['number', 'number', 'number', 'number', 'number']),
-              FresnelIntegral: Module.cwrap('FresnelIntegral', 'number', ['number']),
-              H0Function: Module.cwrap('H0Function', 'number', ['number', 'number']),
-              
-              // Direct module access for advanced usage
-              Module: Module
-            };
-          }
-          
-          export default ITM;
-          EOF
+          du -h dist/itm.wasm
+          echo ""
+          echo "JS file size:"
+          du -h dist/itm.js
 
       - name: Create HTML demo
         run: |
-          cat > bin/demo.html << 'EOF'
+          cat > dist/demo.html << 'EOF'
           <!DOCTYPE html>
           <html lang="en">
           <head>
@@ -311,7 +224,11 @@ jobs:
                       box-shadow: 0 2px 10px rgba(0,0,0,0.1);
                   }
                   h1 { color: #333; margin-top: 0; }
-                  .input-group { margin: 15px 0; display: flex; align-items: center; }
+                  .input-group { 
+                      margin: 15px 0; 
+                      display: flex; 
+                      align-items: center; 
+                  }
                   label { 
                       display: inline-block; 
                       width: 200px; 
@@ -352,23 +269,39 @@ jobs:
                   .status.loading { background: #fff3cd; color: #856404; }
                   .status.success { background: #d4edda; color: #155724; }
                   .status.error { background: #f8d7da; color: #721c24; }
+                  pre { 
+                      background: #f4f4f4; 
+                      padding: 10px; 
+                      border-radius: 4px; 
+                      overflow-x: auto; 
+                  }
               </style>
           </head>
           <body>
               <div class="container">
                   <h1>🌐 ITM WebAssembly Demo</h1>
-                  <p>Calculate radio wave propagation loss using the Irregular Terrain Model</p>
+                  <p>Irregular Terrain Model - Radio Wave Propagation Calculator</p>
                   
                   <div id="status" class="status loading">
                       Loading ITM module...
                   </div>
                   
                   <div id="calculator" style="display: none;">
-                      <h3>Free Space Loss Calculator</h3>
+                      <h3>Area Prediction Mode</h3>
                       
                       <div class="input-group">
-                          <label>Distance (meters):</label>
-                          <input type="number" id="distance" value="10000" min="1000">
+                          <label>TX Height (meters):</label>
+                          <input type="number" id="h_tx" value="30" min="0.5" max="3000">
+                      </div>
+                      
+                      <div class="input-group">
+                          <label>RX Height (meters):</label>
+                          <input type="number" id="h_rx" value="3" min="0.5" max="3000">
+                      </div>
+                      
+                      <div class="input-group">
+                          <label>Distance (km):</label>
+                          <input type="number" id="distance" value="50" min="1">
                       </div>
                       
                       <div class="input-group">
@@ -376,75 +309,171 @@ jobs:
                           <input type="number" id="frequency" value="1000" min="20" max="20000">
                       </div>
                       
-                      <button id="calcBtn" onclick="calculate()">Calculate Loss</button>
+                      <div class="input-group">
+                          <label>Climate:</label>
+                          <select id="climate">
+                              <option value="1">Equatorial</option>
+                              <option value="2">Continental Subtropical</option>
+                              <option value="3">Maritime Subtropical</option>
+                              <option value="4">Desert</option>
+                              <option value="5" selected>Continental Temperate</option>
+                              <option value="6">Maritime Temperate Over Land</option>
+                              <option value="7">Maritime Temperate Over Sea</option>
+                          </select>
+                      </div>
+                      
+                      <div class="input-group">
+                          <label>Polarization:</label>
+                          <select id="pol">
+                              <option value="0">Horizontal</option>
+                              <option value="1" selected>Vertical</option>
+                          </select>
+                      </div>
+                      
+                      <div class="input-group">
+                          <label>Surface Refractivity:</label>
+                          <input type="number" id="N_0" value="301" min="250" max="400">
+                      </div>
+                      
+                      <div class="input-group">
+                          <label>Terrain Irregularity (m):</label>
+                          <input type="number" id="delta_h" value="90" min="0">
+                      </div>
+                      
+                      <button id="calcBtn" onclick="calculate()">Calculate Propagation Loss</button>
                       
                       <div id="result" style="display: none;"></div>
                   </div>
               </div>
               
               <script type="module">
-                  import ITMModule from './libitm.js';
+                  import ITM from './itm.js';
                   
-                  let itm = null;
+                  let itmModule = null;
                   const statusDiv = document.getElementById('status');
                   const calculatorDiv = document.getElementById('calculator');
                   
                   // Initialize the module
                   (async () => {
                       try {
-                          const Module = await ITMModule();
-                          itm = {
-                              FreeSpaceLoss: Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number'])
-                          };
+                          itmModule = await ITM();
                           
                           statusDiv.className = 'status success';
-                          statusDiv.innerHTML = '✓ ITM Module loaded successfully!';
+                          statusDiv.innerHTML = '✓ ITM Module loaded successfully! Ready to calculate.';
                           calculatorDiv.style.display = 'block';
+                          
+                          console.log('ITM Module loaded:', itmModule);
                       } catch (error) {
                           statusDiv.className = 'status error';
                           statusDiv.innerHTML = '✗ Failed to load module: ' + error.message;
+                          console.error('Load error:', error);
                       }
                   })();
                   
                   // Make calculate function global
-                  window.calculate = function() {
-                      if (!itm) {
+                  window.calculate = async function() {
+                      if (!itmModule) {
                           alert('Module not loaded yet. Please wait...');
                           return;
                       }
                       
-                      const distance = parseFloat(document.getElementById('distance').value);
-                      const frequency = parseFloat(document.getElementById('frequency').value);
                       const resultDiv = document.getElementById('result');
                       
-                      if (distance < 1000) {
-                          alert('Distance must be at least 1000 meters (1 km)');
-                          return;
-                      }
-                      
-                      if (frequency < 20 || frequency > 20000) {
-                          alert('Frequency must be between 20 and 20000 MHz');
-                          return;
-                      }
-                      
                       try {
-                          const loss = itm.FreeSpaceLoss(distance, frequency);
+                          // Get input values
+                          const h_tx = parseFloat(document.getElementById('h_tx').value);
+                          const h_rx = parseFloat(document.getElementById('h_rx').value);
+                          const d_km = parseFloat(document.getElementById('distance').value);
+                          const f_mhz = parseFloat(document.getElementById('frequency').value);
+                          const climate = parseInt(document.getElementById('climate').value);
+                          const pol = parseInt(document.getElementById('pol').value);
+                          const N_0 = parseFloat(document.getElementById('N_0').value);
+                          const delta_h = parseFloat(document.getElementById('delta_h').value);
+                          
+                          // Area mode parameters
+                          const epsilon = 15.0;  // Relative permittivity
+                          const sigma = 0.005;   // Conductivity
+                          const mdvar = 3;       // Broadcast mode
+                          const time = 50;       // Time variability (%)
+                          const location = 50;   // Location variability (%)
+                          const situation = 50;  // Situation variability (%)
+                          
+                          // Call ITM area mode
+                          console.log('Calling ITM with parameters:', {
+                              h_tx, h_rx, d_km, f_mhz, climate, pol, N_0, delta_h
+                          });
+                          
+                          const result = itmModule.ITM_AREA_TLS(
+                              h_tx, h_rx,
+                              0, 0,  // siting criteria (random)
+                              d_km,
+                              delta_h,
+                              climate,
+                              N_0,
+                              f_mhz,
+                              pol,
+                              epsilon,
+                              sigma,
+                              mdvar,
+                              time,
+                              location,
+                              situation
+                          );
+                          
+                          console.log('ITM Result:', result);
                           
                           resultDiv.style.display = 'block';
                           resultDiv.innerHTML = `
-                              <h3>📊 Results:</h3>
-                              <p><strong>Distance:</strong> ${distance.toLocaleString()} meters (${(distance/1000).toFixed(2)} km)</p>
-                              <p><strong>Frequency:</strong> ${frequency.toLocaleString()} MHz</p>
-                              <p><strong>Free Space Loss:</strong> <span style="font-size: 1.3em; color: #0066cc;">${loss.toFixed(2)} dB</span></p>
+                              <h3>📊 Propagation Results</h3>
+                              <p><strong>Basic Transmission Loss:</strong> 
+                                  <span style="font-size: 1.5em; color: #0066cc;">${result.A__db.toFixed(2)} dB</span>
+                              </p>
+                              <p><strong>Free Space Loss:</strong> ${result.A_fs__db.toFixed(2)} dB</p>
+                              <p><strong>Mode of Propagation:</strong> ${getModeDescription(result.mode)}</p>
+                              <p><strong>Warning Flags:</strong> ${result.warnings === 0 ? '✓ None' : '⚠ ' + result.warnings.toString(16)}</p>
+                              
+                              <h4>Input Parameters:</h4>
+                              <pre>TX Height: ${h_tx} m
+          RX Height: ${h_rx} m
+          Distance: ${d_km} km
+          Frequency: ${f_mhz} MHz
+          Climate: ${getClimateDescription(climate)}
+          Polarization: ${pol === 0 ? 'Horizontal' : 'Vertical'}
+          Surface Refractivity: ${N_0} N-Units
+          Terrain Irregularity: ${delta_h} m</pre>
+                              
                               <p style="margin-top: 15px; font-size: 0.9em; color: #666;">
-                                  <em>Free space loss represents the signal attenuation in an ideal propagation environment without obstacles.</em>
+                                  <em>The ITM predicts radio wave propagation loss based on terrain, atmospheric conditions, and system parameters.</em>
                               </p>
                           `;
                       } catch (error) {
                           resultDiv.style.display = 'block';
-                          resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                          resultDiv.innerHTML = `<p style="color: red;"><strong>Error:</strong> ${error.message}</p>`;
+                          console.error('Calculation error:', error);
                       }
                   };
+                  
+                  function getModeDescription(mode) {
+                      const modes = {
+                          1: 'Line of Sight',
+                          2: 'Diffraction',
+                          3: 'Troposcatter'
+                      };
+                      return modes[mode] || 'Unknown';
+                  }
+                  
+                  function getClimateDescription(climate) {
+                      const climates = {
+                          1: 'Equatorial',
+                          2: 'Continental Subtropical',
+                          3: 'Maritime Subtropical',
+                          4: 'Desert',
+                          5: 'Continental Temperate',
+                          6: 'Maritime Temperate Over Land',
+                          7: 'Maritime Temperate Over Sea'
+                      };
+                      return climates[climate] || 'Unknown';
+                  }
               </script>
           </body>
           </html>
@@ -452,95 +481,135 @@ jobs:
 
       - name: Create Node.js test script
         run: |
-          cat > bin/test-node.mjs << 'EOF'
+          cat > dist/test-node.mjs << 'EOF'
           /**
            * Node.js test script for ITM WebAssembly module
            */
-          import ITMModule from './libitm.js';
+          import ITM from './itm.js';
           
           (async () => {
-              console.log('🔄 Loading ITM WebAssembly module...');
+              console.log('🔄 Loading ITM WebAssembly module...\n');
               
               try {
-                  const Module = await ITMModule();
+                  const itm = await ITM();
                   console.log('✓ Module loaded successfully!\n');
                   
-                  // Test FreeSpaceLoss function
-                  const FreeSpaceLoss = Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']);
+                  // Test Area Mode
+                  console.log('=== Testing ITM Area Mode ===\n');
                   
-                  console.log('=== Testing FreeSpaceLoss Function ===\n');
+                  const result = itm.ITM_AREA_TLS(
+                      30,    // h_tx__meter (TX height)
+                      3,     // h_rx__meter (RX height)
+                      0,     // tx_site_criteria (random)
+                      0,     // rx_site_criteria (random)
+                      50,    // d__km (distance)
+                      90,    // delta_h__meter (terrain irregularity)
+                      5,     // climate (Continental Temperate)
+                      301,   // N_0 (surface refractivity)
+                      1000,  // f__mhz (frequency)
+                      1,     // pol (vertical)
+                      15,    // epsilon (relative permittivity)
+                      0.005, // sigma (conductivity)
+                      3,     // mdvar (broadcast mode)
+                      50,    // time (%)
+                      50,    // location (%)
+                      50     // situation (%)
+                  );
+                  
+                  console.log('Test Case: 50km link at 1000 MHz');
+                  console.log('─'.repeat(50));
+                  console.log(`TX Height:              30 m`);
+                  console.log(`RX Height:              3 m`);
+                  console.log(`Distance:               50 km`);
+                  console.log(`Frequency:              1000 MHz`);
+                  console.log(`Climate:                Continental Temperate`);
+                  console.log(`Terrain Irregularity:   90 m`);
+                  console.log('');
+                  console.log('Results:');
+                  console.log(`  Basic Transmission Loss:  ${result.A__db.toFixed(2)} dB`);
+                  console.log(`  Free Space Loss:          ${result.A_fs__db.toFixed(2)} dB`);
+                  console.log(`  Mode of Propagation:      ${getModeString(result.mode)}`);
+                  console.log(`  Warnings:                 ${result.warnings === 0 ? 'None' : '0x' + result.warnings.toString(16)}`);
+                  console.log('');
+                  
+                  // Additional test cases
+                  console.log('=== Additional Test Cases ===\n');
                   
                   const testCases = [
-                      { distance: 1000, frequency: 100 },
-                      { distance: 10000, frequency: 1000 },
-                      { distance: 100000, frequency: 5000 },
-                      { distance: 50000, frequency: 2400 }
+                      { d: 10, f: 100, desc: 'Short range, low frequency' },
+                      { d: 100, f: 5000, desc: 'Long range, high frequency' },
+                      { d: 25, f: 2400, desc: 'WiFi frequency (2.4 GHz)' }
                   ];
                   
                   testCases.forEach((test, index) => {
-                      const loss = FreeSpaceLoss(test.distance, test.frequency);
-                      console.log(`Test ${index + 1}:`);
-                      console.log(`  Distance: ${test.distance} m (${test.distance/1000} km)`);
-                      console.log(`  Frequency: ${test.frequency} MHz`);
-                      console.log(`  Free Space Loss: ${loss.toFixed(2)} dB`);
+                      const res = itm.ITM_AREA_TLS(
+                          30, 3, 0, 0, test.d, 90, 5, 301, test.f, 1, 15, 0.005, 3, 50, 50, 50
+                      );
+                      console.log(`Test ${index + 1}: ${test.desc}`);
+                      console.log(`  Distance: ${test.d} km, Frequency: ${test.f} MHz`);
+                      console.log(`  Loss: ${res.A__db.toFixed(2)} dB (Mode: ${getModeString(res.mode)})`);
                       console.log('');
                   });
                   
-                  console.log('✓ All tests passed!\n');
-                  console.log('Module info:');
-                  console.log(`  WASM binary size: ~${(Module.wasmBinary?.byteLength / 1024).toFixed(0) || '?'} KB`);
+                  console.log('✓ All tests completed successfully!\n');
                   
               } catch (error) {
                   console.error('✗ Test failed:', error);
                   process.exit(1);
+              }
+              
+              function getModeString(mode) {
+                  const modes = { 1: 'Line of Sight', 2: 'Diffraction', 3: 'Troposcatter' };
+                  return modes[mode] || 'Unknown';
               }
           })();
           EOF
 
       - name: Test WebAssembly build with Node.js
         run: |
-          cd bin
+          cd dist
           node test-node.mjs
 
-      - name: Create package.json for npm usage
+      - name: Create package.json
         run: |
-          cat > bin/package.json << 'EOF'
+          cat > dist/package.json << 'EOF'
           {
             "name": "itm-wasm",
-            "version": "1.0.0",
-            "description": "ITM (Irregular Terrain Model) compiled to WebAssembly",
+            "version": "1.4.0",
+            "description": "ITM (Irregular Terrain Model) compiled to WebAssembly with Embind",
             "type": "module",
-            "main": "libitm.js",
+            "main": "itm.js",
             "files": [
-              "libitm.js",
-              "libitm.wasm",
-              "itm-wrapper.js",
-              "README-WASM.md"
+              "itm.js",
+              "itm.wasm",
+              "README.md"
             ],
             "keywords": [
               "itm",
               "irregular-terrain-model",
+              "longley-rice",
               "radio-propagation",
+              "rf-propagation",
               "webassembly",
-              "wasm"
+              "wasm",
+              "embind"
             ],
-            "author": "ITS",
-            "license": "SEE LICENSE IN LICENSE"
+            "author": "ITS/NTIA",
+            "license": "SEE LICENSE IN ../LICENSE"
           }
           EOF
 
       - name: Create README for WebAssembly
         run: |
-          cat > bin/README-WASM.md << 'EOF'
+          cat > dist/README.md << 'EOF'
           # ITM WebAssembly Build
           
-          This directory contains the ITM (Irregular Terrain Model) library compiled to WebAssembly.
+          This is the ITM (Irregular Terrain Model) library compiled to WebAssembly using Emscripten with Embind bindings.
           
           ## Files
           
-          - `libitm.js` - Emscripten-generated JavaScript loader
-          - `libitm.wasm` - Compiled WebAssembly binary (~150-200KB)
-          - `itm-wrapper.js` - Convenient JavaScript wrapper (ES6 modules)
+          - `itm.js` - Emscripten-generated JavaScript loader with Embind bindings
+          - `itm.wasm` - Compiled WebAssembly binary
           - `demo.html` - Interactive browser demo
           - `test-node.mjs` - Node.js test script
           - `package.json` - npm package configuration
@@ -551,71 +620,88 @@ jobs:
           
           ```html
           <script type="module">
-            import ITMModule from './libitm.js';
+            import ITM from './itm.js';
             
-            const Module = await ITMModule();
-            const FreeSpaceLoss = Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']);
+            const itm = await ITM();
             
-            const loss = FreeSpaceLoss(10000, 1000);
-            console.log('Free Space Loss:', loss, 'dB');
+            // Calculate area mode propagation loss
+            const result = itm.ITM_AREA_TLS(
+              30,    // TX height (m)
+              3,     // RX height (m)
+              0, 0,  // siting criteria
+              50,    // distance (km)
+              90,    // terrain irregularity (m)
+              5,     // climate
+              301,   // surface refractivity
+              1000,  // frequency (MHz)
+              1,     // polarization (vertical)
+              15,    // epsilon
+              0.005, // sigma
+              3,     // mode variability
+              50, 50, 50  // time, location, situation (%)
+            );
+            
+            console.log('Loss:', result.A__db, 'dB');
           </script>
           ```
           
           ### Node.js Usage
           
           ```javascript
-          import ITMModule from './libitm.js';
-          
-          const Module = await ITMModule();
-          const FreeSpaceLoss = Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']);
-          
-          const loss = FreeSpaceLoss(10000, 1000);
-          console.log('Free Space Loss:', loss, 'dB');
-          ```
-          
-          ### Using the Wrapper
-          
-          ```javascript
-          import ITM from './itm-wrapper.js';
+          import ITM from './itm.js';
           
           const itm = await ITM();
-          const loss = itm.FreeSpaceLoss(10000, 1000);
-          console.log('Loss:', loss, 'dB');
+          
+          const result = itm.ITM_AREA_TLS(
+            30, 3, 0, 0, 50, 90, 5, 301, 1000, 1, 15, 0.005, 3, 50, 50, 50
+          );
+          
+          console.log('Basic Transmission Loss:', result.A__db, 'dB');
+          console.log('Free Space Loss:', result.A_fs__db, 'dB');
+          console.log('Mode:', result.mode); // 1=LoS, 2=Diffraction, 3=Troposcatter
           ```
           
           ## Available Functions
           
-          ### Main API Functions
+          The module exposes the following ITM functions through Embind:
           
-          - **`ITM_P2P_TLS(...)`** - Point-to-point mode with time/location/situation variability
-          - **`ITM_P2P_CR(...)`** - Point-to-point mode with confidence/reliability
-          - **`ITM_AREA_TLS(...)`** - Area prediction mode with time/location/situation
-          - **`ITM_AREA_CR(...)`** - Area prediction mode with confidence/reliability
+          ### Area Prediction Mode
           
-          ### Helper Functions
+          - **`ITM_AREA_TLS(...)`** - Area mode with time/location/situation variability
+          - **`ITM_AREA_CR(...)`** - Area mode with confidence/reliability
           
-          - **`FreeSpaceLoss(distance_m, frequency_mhz)`** - Calculate free space path loss
-          - **`ValidateInputs(...)`** - Validate ITM input parameters
-          - **`FindHorizons(...)`** - Find horizon angles and distances
-          - **`FresnelIntegral(v2)`** - Calculate Fresnel integral
-          - **`H0Function(r, eta_s)`** - H0 terrain function
-          - **`DiffractionLoss(...)`** - Calculate diffraction loss
-          - **`TroposcatterLoss(...)`** - Calculate troposcatter loss
-          - **`LineOfSightLoss(...)`** - Calculate line-of-sight loss
+          ### Point-to-Point Mode
+          
+          - **`ITM_P2P_TLS(...)`** - Point-to-point with time/location/situation
+          - **`ITM_P2P_CR(...)`** - Point-to-point with confidence/reliability
+          
+          ### Return Values
+          
+          All main functions return an object with:
+          - `A__db` - Basic transmission loss (dB)
+          - `A_fs__db` - Free space loss (dB) 
+          - `d__km` - Path distance (km)
+          - `theta_hzn` - Horizon angles (array)
+          - `d_hzn__meter` - Horizon distances (array)
+          - `h_e__meter` - Effective heights (array)
+          - `delta_h__meter` - Terrain irregularity (m)
+          - `N_s` - Surface refractivity
+          - `A_ref__db` - Reference attenuation (dB)
+          - `mode` - Propagation mode (1=LoS, 2=Diffraction, 3=Troposcatter)
+          - `warnings` - Warning flags
           
           ## Interactive Demo
           
-          Open `demo.html` in a web browser. Note: Must be served via HTTP/HTTPS (not `file://`).
+          Open `demo.html` in a web browser (must be served via HTTP/HTTPS):
           
-          **Quick local server:**
           ```bash
+          # Python
           python3 -m http.server 8000
-          # Visit: http://localhost:8000/demo.html
-          ```
           
-          Or with Node.js:
-          ```bash
+          # Node.js
           npx serve .
+          
+          # Then visit: http://localhost:8000/demo.html
           ```
           
           ## Testing
@@ -625,69 +711,72 @@ jobs:
           node test-node.mjs
           ```
           
+          Expected output shows propagation loss calculations for various scenarios.
+          
+          ## Input Parameters
+          
+          ### Common Parameters (all modes)
+          
+          - `h_tx__meter` - TX structural height (0.5-3000 m)
+          - `h_rx__meter` - RX structural height (0.5-3000 m)
+          - `climate` - Radio climate (1-7)
+            - 1 = Equatorial
+            - 2 = Continental Subtropical
+            - 3 = Maritime Subtropical
+            - 4 = Desert
+            - 5 = Continental Temperate
+            - 6 = Maritime Temperate Over Land
+            - 7 = Maritime Temperate Over Sea
+          - `N_0` - Surface refractivity (250-400 N-Units)
+          - `f__mhz` - Frequency (20-20000 MHz)
+          - `pol` - Polarization (0=Horizontal, 1=Vertical)
+          - `epsilon` - Relative permittivity (>1)
+          - `sigma` - Conductivity (>0 S/m)
+          - `mdvar` - Mode of variability (0-3, +10 to eliminate location, +20 for situation)
+          
+          ### Area Mode Specific
+          
+          - `d__km` - Path distance (km)
+          - `delta_h__meter` - Terrain irregularity (m)
+          - `tx_siting_criteria` - TX siting (0=Random, 1=Careful, 2=Very Careful)
+          - `rx_siting_criteria` - RX siting (0=Random, 1=Careful, 2=Very Careful)
+          
+          ### Point-to-Point Mode Specific
+          
+          - `pfl` - Terrain profile array:
+            - `[0]` = number of elevation points - 1
+            - `[1]` = resolution in meters
+            - `[i]` = elevation in meters
+          
           ## Performance
           
-          - **Binary Size:** ~150-200 KB (uncompressed)
-          - **Gzip Size:** ~60-80 KB (when served with compression)
-          - **Load Time:** <100ms on modern connections
-          - **Execution:** Near-native performance
+          - **Binary Size:** ~200-300 KB (uncompressed)
+          - **Gzipped:** ~80-120 KB
+          - **Load Time:** <200ms on modern connections
+          - **Execution:** Near-native C++ performance
           
           ## Browser Compatibility
           
-          - Chrome 57+ ✓
-          - Firefox 52+ ✓
-          - Safari 11+ ✓
-          - Edge 16+ ✓
+          - ✓ Chrome 57+
+          - ✓ Firefox 52+
+          - ✓ Safari 11+
+          - ✓ Edge 16+
           
           ## Node.js Compatibility
           
-          - Node.js 12+ with ES6 module support
+          - Node.js 12+ with ES module support
           - Use `.mjs` extension or `"type": "module"` in package.json
           
-          ## Memory Usage
+          ## Documentation
           
-          - Initial: 16 MB
-          - Maximum: 256 MB
-          - Auto-growing as needed
-          
-          ## Example: Point-to-Point Calculation
-          
-          ```javascript
-          import ITM from './itm-wrapper.js';
-          
-          const itm = await ITM();
-          
-          // Allocate memory for terrain profile
-          const Module = itm.Module;
-          const pfl = new Float64Array([100, 50, /* elevation data */]);
-          const pfl_ptr = Module._malloc(pfl.length * 8);
-          Module.HEAPF64.set(pfl, pfl_ptr / 8);
-          
-          // Call ITM_P2P_TLS
-          const result = itm.ITM_P2P_TLS(
-            h_tx, h_rx, climate, N_0, f_mhz, pol,
-            epsilon, sigma, mdvar, time, location, situation,
-            pfl_ptr, /* output pointers */
-          );
-          
-          Module._free(pfl_ptr);
-          ```
-          
-          ## Error Handling
-          
-          ITM returns warning flags and error codes. Check the main documentation for details:
-          - [Error Codes and Warnings](../ERRORS_AND_WARNINGS.md)
-          - [Full Documentation](../README.md)
+          For complete ITM documentation, see:
+          - [Main README](../README.md)
+          - [Error Codes & Warnings](../ERRORS_AND_WARNINGS.md)
+          - [Command-line Tool](../cmdREADME.md)
           
           ## License
           
           See the main repository LICENSE file.
-          
-          ## Resources
-          
-          - [ITM GitHub Repository](https://github.com/NTIA/itm)
-          - [Command-line Documentation](../cmdREADME.md)
-          - [Emscripten Documentation](https://emscripten.org/)
           
           EOF
 
@@ -696,18 +785,17 @@ jobs:
         with:
           name: itm-wasm
           path: |
-            bin/libitm.js
-            bin/libitm.wasm
-            bin/itm-wrapper.js
-            bin/demo.html
-            bin/test-node.mjs
-            bin/package.json
-            bin/README-WASM.md
+            dist/itm.js
+            dist/itm.wasm
+            dist/demo.html
+            dist/test-node.mjs
+            dist/package.json
+            dist/README.md
 
       - name: Create release archive
         run: |
-          cd bin
-          tar czf ../itm-wasm.tar.gz libitm.js libitm.wasm itm-wrapper.js demo.html test-node.mjs package.json README-WASM.md
+          cd dist
+          tar czf ../itm-wasm.tar.gz itm.js itm.wasm demo.html test-node.mjs package.json README.md
           cd ..
 
       - name: Upload Release Assets
