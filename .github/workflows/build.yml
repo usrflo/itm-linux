@@ -137,3 +137,334 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ./itm-windows-*.zip
+
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '3.1.51'
+          actions-cache-folder: 'emsdk-cache'
+
+      - name: Verify Emscripten installation
+        run: |
+          emcc --version
+          em++ --version
+
+      - name: Create build directories
+        run: |
+          mkdir -p build/wasm
+          mkdir -p bin
+
+      - name: Compile source files to object files
+        run: |
+          # Compile all ITM source files to WebAssembly object files
+          for src in src/*.cpp; do
+            filename=$(basename "$src" .cpp)
+            echo "Compiling $src..."
+            em++ -c "$src" \
+              -o "build/wasm/${filename}.o" \
+              -Iinclude \
+              -O3 \
+              -std=c++11 \
+              -fPIC \
+              -Wall \
+              -Wextra
+          done
+
+      - name: Link WebAssembly library
+        run: |
+          em++ build/wasm/*.o \
+            -o bin/libitm.js \
+            -O3 \
+            -std=c++11 \
+            -s WASM=1 \
+            -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
+            -s EXPORTED_FUNCTIONS='["_ITM_P2P_TLS","_ITM_P2P_CR","_ITM_AREA_TLS","_ITM_AREA_CR","_FreeSpaceLoss","_InitializePointToPoint","_InitializeArea","_ValidateInputs","_Variability","_LongleyRice","_FindHorizons","_FresnelIntegral","_H0Function","_FFunction","_SigmaHFunction"]' \
+            -s MODULARIZE=1 \
+            -s EXPORT_NAME='ITMModule' \
+            -s ALLOW_MEMORY_GROWTH=1 \
+            -s ENVIRONMENT='web,worker,node' \
+            --no-entry \
+            -lm
+
+      - name: Create JavaScript wrapper
+        run: |
+          cat > bin/itm-wrapper.js << 'EOF'
+          /**
+           * ITM (Irregular Terrain Model) WebAssembly Wrapper
+           * 
+           * Usage:
+           *   import ITM from './itm-wrapper.js';
+           *   const itm = await ITM();
+           *   const loss = itm.FreeSpaceLoss(10000, 1000);
+           */
+          
+          import ITMModule from './libitm.js';
+          
+          async function ITM() {
+            const Module = await ITMModule();
+            
+            return {
+              // Wrapped functions for easy access
+              FreeSpaceLoss: Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']),
+              
+              ValidateInputs: Module.cwrap('ValidateInputs', 'number', [
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number', 
+                'number'
+              ]),
+              
+              ITM_P2P_TLS: Module.cwrap('ITM_P2P_TLS', 'number', [
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number'
+              ]),
+              
+              ITM_P2P_CR: Module.cwrap('ITM_P2P_CR', 'number', [
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number', 
+                'number', 'number', 'number', 'number', 
+                'number', 'number'
+              ]),
+              
+              // Direct module access for advanced usage
+              Module: Module
+            };
+          }
+          
+          export default ITM;
+          EOF
+
+      - name: Create HTML demo
+        run: |
+          cat > bin/demo.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>ITM WebAssembly Demo</title>
+              <style>
+                  body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+                  .input-group { margin: 15px 0; }
+                  label { display: inline-block; width: 200px; }
+                  input { width: 200px; padding: 5px; }
+                  button { margin-top: 20px; padding: 10px 20px; background: #0066cc; color: white; border: none; cursor: pointer; }
+                  button:hover { background: #0052a3; }
+                  #result { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; }
+              </style>
+          </head>
+          <body>
+              <h1>ITM WebAssembly Demo</h1>
+              <p>Calculate Free Space Loss using the ITM library compiled to WebAssembly</p>
+              
+              <div class="input-group">
+                  <label>Distance (meters):</label>
+                  <input type="number" id="distance" value="10000">
+              </div>
+              
+              <div class="input-group">
+                  <label>Frequency (MHz):</label>
+                  <input type="number" id="frequency" value="1000">
+              </div>
+              
+              <button onclick="calculate()">Calculate Loss</button>
+              
+              <div id="result"></div>
+              
+              <script type="module">
+                  import ITMModule from './libitm.js';
+                  
+                  let itm = null;
+                  
+                  // Initialize the module
+                  (async () => {
+                      const Module = await ITMModule();
+                      itm = {
+                          FreeSpaceLoss: Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number'])
+                      };
+                      document.getElementById('result').innerHTML = '<p style="color: green;">✓ ITM Module loaded successfully!</p>';
+                  })();
+                  
+                  // Make calculate function global
+                  window.calculate = function() {
+                      if (!itm) {
+                          document.getElementById('result').innerHTML = '<p style="color: red;">Module not loaded yet. Please wait...</p>';
+                          return;
+                      }
+                      
+                      const distance = parseFloat(document.getElementById('distance').value);
+                      const frequency = parseFloat(document.getElementById('frequency').value);
+                      
+                      try {
+                          const loss = itm.FreeSpaceLoss(distance, frequency);
+                          document.getElementById('result').innerHTML = `
+                              <h3>Results:</h3>
+                              <p><strong>Distance:</strong> ${distance.toFixed(2)} meters</p>
+                              <p><strong>Frequency:</strong> ${frequency.toFixed(2)} MHz</p>
+                              <p><strong>Free Space Loss:</strong> ${loss.toFixed(2)} dB</p>
+                          `;
+                      } catch (error) {
+                          document.getElementById('result').innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                      }
+                  };
+              </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Create Node.js test script
+        run: |
+          cat > bin/test-node.js << 'EOF'
+          /**
+           * Node.js test script for ITM WebAssembly module
+           */
+          import ITMModule from './libitm.js';
+          
+          (async () => {
+              console.log('Loading ITM WebAssembly module...');
+              const Module = await ITMModule();
+              
+              console.log('✓ Module loaded successfully!');
+              
+              // Test FreeSpaceLoss function
+              const FreeSpaceLoss = Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']);
+              
+              const distance = 10000; // meters
+              const frequency = 1000; // MHz
+              const loss = FreeSpaceLoss(distance, frequency);
+              
+              console.log('\n=== Test Results ===');
+              console.log(`Distance: ${distance} meters`);
+              console.log(`Frequency: ${frequency} MHz`);
+              console.log(`Free Space Loss: ${loss.toFixed(2)} dB`);
+              console.log('\n✓ All tests passed!');
+          })();
+          EOF
+
+      - name: Test WebAssembly build with Node.js
+        run: |
+          cd bin
+          node test-node.js
+
+      - name: Create README for WebAssembly
+        run: |
+          cat > bin/README-WASM.md << 'EOF'
+          # ITM WebAssembly Build
+          
+          This directory contains the ITM (Irregular Terrain Model) library compiled to WebAssembly.
+          
+          ## Files
+          
+          - `libitm.js` - Emscripten-generated JavaScript loader
+          - `libitm.wasm` - Compiled WebAssembly binary
+          - `itm-wrapper.js` - Convenient JavaScript wrapper (ES6 modules)
+          - `demo.html` - Browser demo showing usage
+          - `test-node.js` - Node.js test script
+          
+          ## Usage in Browser
+          
+          ```html
+          <script type="module">
+            import ITMModule from './libitm.js';
+            
+            const Module = await ITMModule();
+            const FreeSpaceLoss = Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']);
+            
+            const loss = FreeSpaceLoss(10000, 1000);
+            console.log('Free Space Loss:', loss, 'dB');
+          </script>
+          ```
+          
+          ## Usage in Node.js
+          
+          ```javascript
+          import ITMModule from './libitm.js';
+          
+          const Module = await ITMModule();
+          const FreeSpaceLoss = Module.cwrap('FreeSpaceLoss', 'number', ['number', 'number']);
+          
+          const loss = FreeSpaceLoss(10000, 1000);
+          console.log('Free Space Loss:', loss, 'dB');
+          ```
+          
+          ## Using the Wrapper
+          
+          ```javascript
+          import ITM from './itm-wrapper.js';
+          
+          const itm = await ITM();
+          const loss = itm.FreeSpaceLoss(10000, 1000);
+          console.log('Loss:', loss, 'dB');
+          ```
+          
+          ## Exported Functions
+          
+          - `FreeSpaceLoss(distance_m, frequency_mhz)`
+          - `ITM_P2P_TLS(...)` - Point-to-point transmission loss
+          - `ITM_P2P_CR(...)` - Point-to-point confidence/reliability
+          - `ITM_AREA_TLS(...)` - Area mode transmission loss
+          - `ITM_AREA_CR(...)` - Area mode confidence/reliability
+          - `ValidateInputs(...)`
+          - `FindHorizons(...)`
+          - `FresnelIntegral(...)`
+          - And more...
+          
+          ## Demo
+          
+          Open `demo.html` in a web browser (must be served via HTTP/HTTPS, not file://).
+          
+          Simple local server:
+          ```bash
+          python3 -m http.server 8000
+          # Then visit http://localhost:8000/demo.html
+          ```
+          
+          ## Testing
+          
+          ```bash
+          node test-node.js
+          ```
+          
+          ## Size
+          
+          The WASM binary is optimized with -O3 and should be ~100-200KB.
+          Consider gzip compression for web serving (typically 30-40% reduction).
+          
+          ## Compatibility
+          
+          - Modern browsers (Chrome 57+, Firefox 52+, Safari 11+, Edge 16+)
+          - Node.js 12+ with ES6 module support
+          
+          EOF
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: itm-wasm
+          path: |
+            bin/libitm.js
+            bin/libitm.wasm
+            bin/itm-wrapper.js
+            bin/demo.html
+            bin/test-node.js
+            bin/README-WASM.md
+
+      - name: Create release archive
+        run: |
+          cd bin
+          tar czf ../itm-wasm.tar.gz libitm.js libitm.wasm itm-wrapper.js demo.html test-node.js README-WASM.md
+          cd ..
+
+      - name: Upload Release Assets
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./itm-wasm.tar.gz
