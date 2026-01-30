@@ -274,6 +274,7 @@ jobs:
                       padding: 10px; 
                       border-radius: 4px; 
                       overflow-x: auto; 
+                      font-size: 12px;
                   }
               </style>
           </head>
@@ -425,23 +426,71 @@ jobs:
                           );
                           
                           console.log('ITM Result:', result);
+                          console.log('Result type:', typeof result);
+                          console.log('Result properties:', result ? Object.keys(result) : 'null');
                           
-                          resultDiv.style.display = 'block';
-                          resultDiv.innerHTML = `
-                              <h3>📊 Propagation Results</h3>
-                              <p><strong>Basic Transmission Loss:</strong> 
-                                  <span style="font-size: 1.5em; color: #0066cc;">${result.A__db.toFixed(2)} dB</span>
-                              </p>
-                              <p><strong>Free Space Loss:</strong> ${result.A_fs__db.toFixed(2)} dB</p>
-                              <p><strong>Mode of Propagation:</strong> ${getModeDescription(result.mode)}</p>
-                              <p><strong>Warning Flags:</strong> ${result.warnings === 0 ? '✓ None' : '⚠ 0x' + result.warnings.toString(16)}</p>
+                          // Build result HTML based on what's actually available
+                          let resultHTML = '<h3>📊 Propagation Results</h3>';
+                          
+                          if (result && typeof result === 'object') {
+                              // Show all available properties
+                              const props = Object.keys(result);
                               
-                              <h4>Intermediate Values:</h4>
-                              <pre>Path Distance: ${result.d__km.toFixed(2)} km
-          Terrain Irregularity: ${result.delta_h__meter.toFixed(2)} m
-          Surface Refractivity: ${result.N_s.toFixed(2)} N-Units
-          Reference Attenuation: ${result.A_ref__db.toFixed(2)} dB</pre>
-                              
+                              if (props.length > 0) {
+                                  resultHTML += '<h4>Calculated Values:</h4><pre>';
+                                  
+                                  props.forEach(prop => {
+                                      const value = result[prop];
+                                      if (typeof value === 'number') {
+                                          resultHTML += `${prop}: ${value.toFixed(4)}\n`;
+                                      } else if (typeof value === 'object' && value !== null) {
+                                          resultHTML += `${prop}: ${JSON.stringify(value)}\n`;
+                                      } else {
+                                          resultHTML += `${prop}: ${value}\n`;
+                                      }
+                                  });
+                                  
+                                  resultHTML += '</pre>';
+                                  
+                                  // Try to display key values if they exist
+                                  if (typeof result.A__db !== 'undefined') {
+                                      resultHTML = `
+                                          <h3>📊 Propagation Results</h3>
+                                          <p><strong>Basic Transmission Loss:</strong> 
+                                              <span style="font-size: 1.5em; color: #0066cc;">${result.A__db.toFixed(2)} dB</span>
+                                          </p>
+                                      `;
+                                      
+                                      if (typeof result.A_fs__db !== 'undefined') {
+                                          resultHTML += `<p><strong>Free Space Loss:</strong> ${result.A_fs__db.toFixed(2)} dB</p>`;
+                                      }
+                                      if (typeof result.mode !== 'undefined') {
+                                          resultHTML += `<p><strong>Mode of Propagation:</strong> ${getModeDescription(result.mode)}</p>`;
+                                      }
+                                      if (typeof result.warnings !== 'undefined') {
+                                          resultHTML += `<p><strong>Warning Flags:</strong> ${result.warnings === 0 ? '✓ None' : '⚠ 0x' + result.warnings.toString(16)}</p>`;
+                                      }
+                                      
+                                      resultHTML += '<h4>All Result Properties:</h4><pre>';
+                                      props.forEach(prop => {
+                                          const value = result[prop];
+                                          if (typeof value === 'number') {
+                                              resultHTML += `${prop}: ${value.toFixed(4)}\n`;
+                                          } else {
+                                              resultHTML += `${prop}: ${value}\n`;
+                                          }
+                                      });
+                                      resultHTML += '</pre>';
+                                  }
+                              } else {
+                                  resultHTML += '<p>Result object is empty.</p>';
+                              }
+                          } else {
+                              resultHTML += `<p>Unexpected result type: ${typeof result}</p><pre>${JSON.stringify(result, null, 2)}</pre>`;
+                          }
+                          
+                          // Add input parameters
+                          resultHTML += `
                               <h4>Input Parameters:</h4>
                               <pre>TX Height: ${h_tx} m
           RX Height: ${h_rx} m
@@ -456,6 +505,10 @@ jobs:
                                   <em>The ITM predicts radio wave propagation loss based on terrain, atmospheric conditions, and system parameters.</em>
                               </p>
                           `;
+                          
+                          resultDiv.style.display = 'block';
+                          resultDiv.innerHTML = resultHTML;
+                          
                       } catch (error) {
                           resultDiv.style.display = 'block';
                           resultDiv.innerHTML = `<p style="color: red;"><strong>Error:</strong> ${error.message}</p>
