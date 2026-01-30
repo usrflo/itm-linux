@@ -346,23 +346,27 @@ jobs:
                   </div>
               </div>
               
-              <script type="module">
-                  import ITM from './itm.js';
-                  
+              <script src="./itm.js"></script>
+              <script>
                   let itmModule = null;
                   const statusDiv = document.getElementById('status');
                   const calculatorDiv = document.getElementById('calculator');
                   
-                  // Initialize the module
+                  // Initialize the module using the global ITM function
                   (async () => {
                       try {
+                          // ITM is now globally available from the script tag
                           itmModule = await ITM();
                           
                           statusDiv.className = 'status success';
                           statusDiv.innerHTML = '✓ ITM Module loaded successfully! Ready to calculate.';
                           calculatorDiv.style.display = 'block';
                           
-                          console.log('ITM Module loaded:', itmModule);
+                          console.log('ITM Module loaded');
+                          console.log('Available ITM functions:', 
+                              Object.keys(itmModule)
+                                  .filter(k => typeof itmModule[k] === 'function' && k.startsWith('ITM_'))
+                                  .join(', '));
                       } catch (error) {
                           statusDiv.className = 'status error';
                           statusDiv.innerHTML = '✗ Failed to load module: ' + error.message;
@@ -370,8 +374,8 @@ jobs:
                       }
                   })();
                   
-                  // Make calculate function global
-                  window.calculate = async function() {
+                  // Calculate function
+                  async function calculate() {
                       if (!itmModule) {
                           alert('Module not loaded yet. Please wait...');
                           return;
@@ -398,12 +402,12 @@ jobs:
                           const location = 50;   // Location variability (%)
                           const situation = 50;  // Situation variability (%)
                           
-                          // Call ITM area mode
-                          console.log('Calling ITM with parameters:', {
+                          console.log('Calling ITM_AREA_TLS_r with parameters:', {
                               h_tx, h_rx, d_km, f_mhz, climate, pol, N_0, delta_h
                           });
                           
-                          const result = itmModule.ITM_AREA_TLS(
+                          // Call the _r version which returns a result object directly
+                          const result = itmModule.ITM_AREA_TLS_r(
                               h_tx, h_rx,
                               0, 0,  // siting criteria (random)
                               d_km,
@@ -430,7 +434,13 @@ jobs:
                               </p>
                               <p><strong>Free Space Loss:</strong> ${result.A_fs__db.toFixed(2)} dB</p>
                               <p><strong>Mode of Propagation:</strong> ${getModeDescription(result.mode)}</p>
-                              <p><strong>Warning Flags:</strong> ${result.warnings === 0 ? '✓ None' : '⚠ ' + result.warnings.toString(16)}</p>
+                              <p><strong>Warning Flags:</strong> ${result.warnings === 0 ? '✓ None' : '⚠ 0x' + result.warnings.toString(16)}</p>
+                              
+                              <h4>Intermediate Values:</h4>
+                              <pre>Path Distance: ${result.d__km.toFixed(2)} km
+          Terrain Irregularity: ${result.delta_h__meter.toFixed(2)} m
+          Surface Refractivity: ${result.N_s.toFixed(2)} N-Units
+          Reference Attenuation: ${result.A_ref__db.toFixed(2)} dB</pre>
                               
                               <h4>Input Parameters:</h4>
                               <pre>TX Height: ${h_tx} m
@@ -448,10 +458,11 @@ jobs:
                           `;
                       } catch (error) {
                           resultDiv.style.display = 'block';
-                          resultDiv.innerHTML = `<p style="color: red;"><strong>Error:</strong> ${error.message}</p>`;
+                          resultDiv.innerHTML = `<p style="color: red;"><strong>Error:</strong> ${error.message}</p>
+                              <pre style="color: red; font-size: 0.9em;">${error.stack || ''}</pre>`;
                           console.error('Calculation error:', error);
                       }
-                  };
+                  }
                   
                   function getModeDescription(mode) {
                       const modes = {
@@ -491,38 +502,22 @@ jobs:
               console.log('🔄 Loading ITM WebAssembly module...\n');
               
               try {
+                  // Call ITM as a function to get the module instance
                   const itm = await ITM();
+                  
                   console.log('✓ Module loaded successfully!\n');
                   
                   // Debug: Check what's available in the module
-                  console.log('Available methods:');
-                  console.log(Object.keys(itm).filter(key => typeof itm[key] === 'function').join(', '));
+                  console.log('Available ITM functions:');
+                  const itmFunctions = Object.keys(itm).filter(key => typeof itm[key] === 'function' && key.startsWith('ITM_'));
+                  console.log(itmFunctions.join(', '));
                   console.log('');
                   
-                  // Try different possible API names
-                  const possibleNames = [
-                      'ITM_AREA_TLS',
-                      'ITM_Area_TLS', 
-                      'itmAreaTLS',
-                      'ITM_P2P_TLS',
-                      'FreeSpaceLoss'
-                  ];
-                  
-                  console.log('Checking for ITM functions:');
-                  possibleNames.forEach(name => {
-                      if (itm[name]) {
-                          console.log(`  ✓ Found: ${name}`);
-                      } else {
-                          console.log(`  ✗ Missing: ${name}`);
-                      }
-                  });
-                  console.log('');
-                  
-                  // If ITM_AREA_TLS exists, test it
-                  if (typeof itm.ITM_AREA_TLS === 'function') {
-                      console.log('=== Testing ITM Area Mode ===\n');
+                  // Use ITM_AREA_TLS_r (the _r version returns a result object)
+                  if (typeof itm.ITM_AREA_TLS_r === 'function') {
+                      console.log('=== Testing ITM Area Mode (ITM_AREA_TLS_r) ===\n');
                       
-                      const result = itm.ITM_AREA_TLS(
+                      const result = itm.ITM_AREA_TLS_r(
                           30,    // h_tx__meter (TX height)
                           3,     // h_rx__meter (RX height)
                           0,     // tx_site_criteria (random)
@@ -554,16 +549,36 @@ jobs:
                       console.log(`  Basic Transmission Loss:  ${result.A__db.toFixed(2)} dB`);
                       console.log(`  Free Space Loss:          ${result.A_fs__db.toFixed(2)} dB`);
                       console.log(`  Mode of Propagation:      ${getModeString(result.mode)}`);
+                      console.log(`  Path Distance:            ${result.d__km.toFixed(2)} km`);
+                      console.log(`  Surface Refractivity:     ${result.N_s.toFixed(2)} N-Units`);
+                      console.log(`  Reference Attenuation:    ${result.A_ref__db.toFixed(2)} dB`);
                       console.log(`  Warnings:                 ${result.warnings === 0 ? 'None' : '0x' + result.warnings.toString(16)}`);
                       console.log('');
+                      
+                      // Additional test cases
+                      console.log('=== Additional Test Cases ===\n');
+                      
+                      const testCases = [
+                          { d: 10, f: 100, desc: 'Short range, low frequency' },
+                          { d: 100, f: 5000, desc: 'Long range, high frequency' },
+                          { d: 25, f: 2400, desc: 'WiFi frequency (2.4 GHz)' }
+                      ];
+                      
+                      testCases.forEach((test, index) => {
+                          const res = itm.ITM_AREA_TLS_r(
+                              30, 3, 0, 0, test.d, 90, 5, 301, test.f, 1, 15, 0.005, 3, 50, 50, 50
+                          );
+                          console.log(`Test ${index + 1}: ${test.desc}`);
+                          console.log(`  Distance: ${test.d} km, Frequency: ${test.f} MHz`);
+                          console.log(`  Loss: ${res.A__db.toFixed(2)} dB (Mode: ${getModeString(res.mode)})`);
+                          console.log('');
+                      });
+                      
                       console.log('✓ All tests completed successfully!\n');
                   } else {
-                      console.log('⚠ ITM_AREA_TLS function not found.');
-                      console.log('This might mean the embind wrapper needs to be checked.');
-                      console.log('Build succeeded but API may differ from expected.\n');
-                      
-                      // Don't fail the build, just warn
-                      console.log('✓ Module loads correctly, function export needs verification.\n');
+                      console.log('⚠ ITM_AREA_TLS_r function not found.');
+                      console.log('Available ITM functions:', itmFunctions.join(', '));
+                      console.log('\n✓ Module loads correctly, but expected functions not found.\n');
                   }
                   
               } catch (error) {
@@ -593,7 +608,7 @@ jobs:
           else
             echo "Warning: itm_em_wrapper.cpp not found"
           fi
-          
+
       - name: Create package.json
         run: |
           cat > dist/package.json << 'EOF'
