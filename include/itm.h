@@ -7,7 +7,12 @@
 using namespace std;
 
 // Export the DLL functions as "C" and not C++
-#if defined(_LINUX) || defined(_DARWIN)
+#if defined(__EMSCRIPTEN__)
+// #ifndef __ITM_H__
+// #define __ITM_H__
+#include <emscripten/emscripten.h>
+#define DLLEXPORT EMSCRIPTEN_KEEPALIVE
+#elif defined(_LINUX) || defined(_DARWIN)
 #define DLLEXPORT extern "C"
 #else
 #define DLLEXPORT extern "C" __declspec(dllexport)
