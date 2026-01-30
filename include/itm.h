@@ -1,6 +1,3 @@
-#ifndef __ITM_H__
-#define __ITM_H__
-
 #include <complex>
 #include <math.h>
 #include <algorithm>
@@ -11,6 +8,8 @@ using namespace std;
 
 // Export the DLL functions as "C" and not C++
 #if defined(__EMSCRIPTEN__)
+// #ifndef __ITM_H__
+// #define __ITM_H__
 #include <emscripten/emscripten.h>
 #define DLLEXPORT EMSCRIPTEN_KEEPALIVE
 #elif defined(_LINUX) || defined(_DARWIN)
